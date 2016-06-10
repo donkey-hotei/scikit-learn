@@ -72,6 +72,10 @@ class IsolationForest(BaseBagging):
         The number of jobs to run in parallel for both `fit` and `predict`.
         If -1, then the number of jobs is set to the number of cores.
 
+    n_more_estimators : integer, optional (default=10)
+        The number of estimators to drop from ensemble and to add when fitting.
+        To be used with partial_fit method.
+
     random_state : int, RandomState instance or None, optional (default=None)
         If int, random_state is the seed used by the random number generator;
         If RandomState instance, random_state is the random number generator;
@@ -107,9 +111,11 @@ class IsolationForest(BaseBagging):
                  n_estimators=100,
                  max_samples="auto",
                  contamination=0.1,
+                 warm_start=False,
                  max_features=1.,
                  bootstrap=False,
                  n_jobs=1,
+                 n_more_estimators=10,
                  random_state=None,
                  verbose=0):
         super(IsolationForest, self).__init__(
@@ -127,6 +133,7 @@ class IsolationForest(BaseBagging):
             random_state=random_state,
             verbose=verbose)
         self.contamination = contamination
+        self.n_more_estimators = n_more_estimators
 
     def _set_oob_score(self, X, y):
         raise NotImplementedError("OOB score not supported by iforest")
@@ -192,6 +199,32 @@ class IsolationForest(BaseBagging):
             -self.decision_function(X), 100. * (1. - self.contamination))
 
         return self
+
+    def partial_fit(self, X, y=None):
+        """Partially fit estimator
+        For fitting data in incrementally or when memory is insufficient to 
+        load all data at once.
+
+        Parameters
+        ----------
+        X : array-like or sparse matrix, shape (n_samples, n_features)
+            The input samples. Use ``dtype=np.float32`` for maximum
+            efficiency. Sparse matrices are also supported, use sparse
+            ``csc_matrix`` for maximum efficiency.
+        
+        Returns
+        -------
+        self : object
+            Returns self.        
+        """
+        if not hasattr(self, 'warm_start'):
+            self.warm_start = True
+        
+        while 0 < len(self.estimators_) \
+            > (len(self.estimators_) - self.n_more_estimators):
+                self.estimators_.pop()
+        
+        self.fit(X, y)
 
     def predict(self, X):
         """Predict if a particular sample is an outlier or not.
